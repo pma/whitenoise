@@ -172,46 +172,8 @@ class ChatScreen extends HookConsumerWidget {
       return messageService.toggleReaction(message: message, emoji: emoji);
     }
 
-    Future<void> showMessageMenu(ChatMessage message) async {
-      FocusScope.of(context).unfocus();
-      final isGroupChat = chatProfile.data?.isDm != true;
-      final authorMetadata = getAuthorMetadata(message.pubkey);
-      final senderName = message.pubkey == pubkey
-          ? context.l10n.you
-          : presentName(authorMetadata) ?? context.l10n.unknownUser;
-      final senderPictureUrl = authorMetadata?.picture;
-      await MessageActionsScreen.show(
-        context,
-        message: message,
-        pubkey: pubkey,
-        onDelete: () => messageService.deleteTextMessage(
-          messageId: message.id,
-          messagePubkey: message.pubkey,
-        ),
-        onAddReaction: (emoji) => messageService.sendReaction(
-          messageId: message.id,
-          messagePubkey: message.pubkey,
-          messageKind: message.kind,
-          emoji: emoji,
-        ),
-        onRemoveReaction: (reactionId) => messageService.deleteReaction(
-          reactionId: reactionId,
-          reactionPubkey: pubkey,
-        ),
-        onReply: (msg) => input.setReplyingTo(msg),
-        onSave: message.mediaAttachments.isNotEmpty
-            ? () => _saveAllAttachments(context, message.mediaAttachments)
-            : null,
-        senderName: senderName,
-        getChatMessageQuote: getChatMessageQuote,
-        senderPictureUrl: senderPictureUrl,
-        isGroupChat: isGroupChat,
-      );
-      if (context.mounted) FocusManager.instance.primaryFocus?.unfocus();
-    }
-
-    Future<void> _saveAllAttachments(
-      BuildContext context,
+    Future<void> saveAllAttachments(
+      BuildContext ctx,
       List<MediaFile> attachments,
     ) async {
       var saved = 0;
@@ -240,15 +202,55 @@ class ChatScreen extends HookConsumerWidget {
           // skip files that fail, report at end
         }
       }
-      if (context.mounted) {
+      if (ctx.mounted) {
         final msg = saved == 0
             ? 'Nothing to save (media not yet downloaded)'
             : saved == attachments.length
                 ? 'Saved'
                 : 'Saved $saved of ${attachments.length}';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(msg)));
       }
     }
+
+    Future<void> showMessageMenu(ChatMessage message) async {
+      FocusScope.of(context).unfocus();
+      final isGroupChat = chatProfile.data?.isDm != true;
+      final authorMetadata = getAuthorMetadata(message.pubkey);
+      final senderName = message.pubkey == pubkey
+          ? context.l10n.you
+          : presentName(authorMetadata) ?? context.l10n.unknownUser;
+      final senderPictureUrl = authorMetadata?.picture;
+      await MessageActionsScreen.show(
+        context,
+        message: message,
+        pubkey: pubkey,
+        onDelete: () => messageService.deleteTextMessage(
+          messageId: message.id,
+          messagePubkey: message.pubkey,
+        ),
+        onAddReaction: (emoji) => messageService.sendReaction(
+          messageId: message.id,
+          messagePubkey: message.pubkey,
+          messageKind: message.kind,
+          emoji: emoji,
+        ),
+        onRemoveReaction: (reactionId) => messageService.deleteReaction(
+          reactionId: reactionId,
+          reactionPubkey: pubkey,
+        ),
+        onReply: (msg) => input.setReplyingTo(msg),
+        onSave: message.mediaAttachments.isNotEmpty
+            ? () => saveAllAttachments(context, message.mediaAttachments)
+            : null,
+        senderName: senderName,
+        getChatMessageQuote: getChatMessageQuote,
+        senderPictureUrl: senderPictureUrl,
+        isGroupChat: isGroupChat,
+      );
+      if (context.mounted) FocusManager.instance.primaryFocus?.unfocus();
+    }
+
+
 
     final safeAreaTop = MediaQuery.of(context).padding.top;
     final safeAreaBottom = MediaQuery.of(context).padding.bottom;
