@@ -367,12 +367,54 @@ class _AudioFullScreenView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    final typography = context.typographyScaled;
+
+    // Horizontal padding serves double duty:
+    //   1. Leaves ~56dp dead zones on each side that route horizontal drags
+    //      to the PageView (swipe to switch attachments).
+    //   2. Prevents the slider from filling the full screen width, which
+    //      would otherwise capture all horizontal gestures.
     return Center(
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 24.w),
-        child: WnAudioMessageTile(
-          mediaFile: mediaFile,
-          isOutgoing: false,
+        padding: EdgeInsets.symmetric(horizontal: 56.w),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Audio identity — icon in a subtle pill
+            Container(
+              padding: EdgeInsets.all(20.r),
+              decoration: BoxDecoration(
+                color: colors.backgroundContentPrimary.withOpacity(0.08),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.audio_file_rounded,
+                size: 48.r,
+                color: colors.backgroundContentPrimary,
+              ),
+            ),
+            SizedBox(height: 12.h),
+            // Filename label
+            if ((mediaFile.originalFilename ?? '').isNotEmpty)
+              Text(
+                mediaFile.originalFilename!,
+                style: typography.medium12.copyWith(
+                  color: colors.backgroundContentSecondary,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            SizedBox(height: 20.h),
+            // Player tile — inherits the horizontal constraints above
+            WnAudioMessageTile(
+              mediaFile: mediaFile,
+              isOutgoing: false,
+            ),
+            SizedBox(height: 8.h),
+            // Hint that side areas are swipeable (only when multi-attachment)
+          ],
         ),
       ),
     );
