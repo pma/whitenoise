@@ -176,6 +176,7 @@ MediaUploadState useMediaUpload({
     }
 
     final existingPaths = items.value.map((item) => item.filePath).toSet();
+    final existingNames = items.value.map((item) => item.originalFilename).toSet();
     final resolvedItems = <({String path, String originalFilename})>[];
     final oversizedNames = <String>[];
 
@@ -184,6 +185,14 @@ MediaUploadState useMediaUpload({
       if (f.size > maxUploadBytes) {
         _logger.warning('pickFiles rejected ${f.name}: ${f.size} bytes exceeds $maxUploadBytes');
         oversizedNames.add(f.name);
+        continue;
+      }
+
+      // Idempotent: silently ignore if already queued by path OR by filename.
+      // Android may return different path representations for the same file on
+      // repeated picks (direct path vs content URI), so check both.
+      if (existingNames.contains(f.name)) {
+        _logger.info('pickFiles skipping ${f.name}: already queued (filename match)');
         continue;
       }
 
