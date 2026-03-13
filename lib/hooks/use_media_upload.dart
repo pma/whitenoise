@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:whitenoise/src/rust/api/media_files.dart';
 
 final _logger = Logger('useMediaUpload');
@@ -161,6 +163,7 @@ MediaUploadState useMediaUpload({
     final result = await FilePicker.platform.pickFiles(
       type: FileType.any,
       allowMultiple: true,
+      withData: true,
     );
     if (result == null || result.files.isEmpty) {
       _logger.info('pickFiles no files selected');
@@ -182,8 +185,24 @@ MediaUploadState useMediaUpload({
       if (f.path != null && !existingPaths.contains(f.path)) {
         resolvedPaths.add(f.path!);
       } else if (f.path == null) {
-        _logger.warning('pickFiles skipping ${f.name}: no path (content URI not supported)');
-        oversizedNames.add(f.name); // reuse oversized list to surface the error
+        // Android content URI — no direct path, stream bytes to a temp file.
+        if (f.bytes != null) {
+          try {
+            final tmpDir = await getTemporaryDirectory();
+            final tmpFile = File('${tmpDir.path}/${f.name}');
+            await tmpFile.writeAsBytes(f.bytes!, flush: true);
+            _logger.info('pickFiles streamed content URI to ${tmpFile.path}');
+            if (!existingPaths.contains(tmpFile.path)) {
+              resolvedPaths.add(tmpFile.path);
+            }
+          } catch (e) {
+            _logger.severe('pickFiles failed to stream ${f.name} to temp file: $e');
+            oversizedNames.add(f.name);
+          }
+        } else {
+          _logger.warning('pickFiles skipping ${f.name}: no path and no bytes');
+          oversizedNames.add(f.name);
+        }
       }
     }
 
