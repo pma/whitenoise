@@ -28,12 +28,20 @@ class WnAudioPlayer extends HookWidget {
     final position = useState(Duration.zero);
     final duration = useState(Duration.zero);
     final isLoaded = useState(false);
+    final loadError = useState(false);
 
     useEffect(() {
-      player.setFilePath(localPath).then((_) {
-        duration.value = player.duration ?? Duration.zero;
-        isLoaded.value = true;
-      });
+      isLoaded.value = false;
+      loadError.value = false;
+      player
+          .setFilePath(localPath)
+          .then((_) {
+            duration.value = player.duration ?? Duration.zero;
+            isLoaded.value = true;
+          })
+          .catchError((Object e) {
+            loadError.value = true;
+          });
       final posSub = player.positionStream.listen((p) => position.value = p);
       final playingSub = player.playingStream.listen((p) => isPlaying.value = p);
       player.playerStateStream.listen((state) {
@@ -48,6 +56,22 @@ class WnAudioPlayer extends HookWidget {
         player.dispose();
       };
     }, [localPath]);
+
+    if (loadError.value) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.error_outline_rounded, size: 24.r, color: colors.fillDestructive),
+          SizedBox(width: 8.w),
+          Text(
+            'Unable to play audio',
+            style: context.typographyScaled.medium12.copyWith(
+              color: colors.backgroundContentSecondary,
+            ),
+          ),
+        ],
+      );
+    }
 
     final progress = duration.value.inMilliseconds > 0
         ? position.value.inMilliseconds / duration.value.inMilliseconds

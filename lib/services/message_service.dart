@@ -276,11 +276,21 @@ class MessageService {
     required MediaFile mediaFile,
   }) async {
     final metadata = mediaFile.fileMetadata;
+
+    // Prefer the stored original filename; fall back to the cached file's
+    // basename (e.g. "<hash>.mp3") so the imeta tag always has a non-empty
+    // filename field.  An empty filename causes parseMip04ImetaTags to
+    // silently reject the whole tag.
+    final originalFilename = metadata?.originalFilename;
+    final filename = (originalFilename != null && originalFilename.isNotEmpty)
+        ? originalFilename
+        : mediaFile.filePath.split('/').last;
+
     final tags = [
       'imeta',
       'url ${mediaFile.blossomUrl}',
       'm ${mediaFile.mimeType}',
-      'filename ${metadata?.originalFilename ?? ''}',
+      'filename $filename',
     ];
     if (mediaFile.originalFileHash != null) {
       tags.add('x ${mediaFile.originalFileHash}');

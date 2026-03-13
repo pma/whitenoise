@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:whitenoise/l10n/l10n.dart';
 import 'package:whitenoise/theme.dart';
 import 'package:whitenoise/widgets/wn_icon.dart';
 

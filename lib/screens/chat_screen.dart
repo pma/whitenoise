@@ -578,7 +578,20 @@ class _ChatInput extends StatelessWidget {
           showAttachBottomSheet(
             context: context,
             onGallery: mediaUpload.pickImages,
-            onFile: mediaUpload.pickFiles,
+            onFile: () async {
+              final oversized = await mediaUpload.pickFiles();
+              if (oversized.isNotEmpty && context.mounted) {
+                final names = oversized.join(', ');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      '${oversized.length == 1 ? 'File' : 'Files'} could not be attached: $names',
+                    ),
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+              }
+            },
           );
         },
         inputField: TextField(

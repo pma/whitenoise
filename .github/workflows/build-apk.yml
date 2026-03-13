@@ -1,0 +1,118 @@
+name: Build Debug APK
+
+on:
+  push:
+    branches: [ feature/audio-message-support ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.4'
+          channel: 'stable'
+          cache: true
+
+      - name: Cache Flutter dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ github.workspace }}/.pub-cache
+          key: ${{ runner.os }}-pub-cache-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-cache-
+
+      - name: Cache pre-built Android native libraries
+        id: jnilibs-cache
+        uses: actions/cache@v4
+        with:
+          path: android/app/src/main/jniLibs
+          key: ${{ runner.os }}-jnilibs-${{ hashFiles('rust/Cargo.toml', 'rust/Cargo.lock', 'rust/src/**', 'scripts/build_android.sh', 'scripts/build_openssl_android.sh', 'scripts/setup_android_config.sh') }}
+
+      # ── Rust build steps (skipped when native libs are cached) ──
+      - name: Set up Rust
+        if: steps.jnilibs-cache.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - name: Cache Rust dependencies
+        if: steps.jnilibs-cache.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: ${{ runner.os }}-cargo-android-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-android-
+
+      - name: Cache OpenSSL for Android
+        if: steps.jnilibs-cache.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: rust/target/openssl/install
+          key: ${{ runner.os }}-openssl-android-${{ hashFiles('scripts/build_openssl_android.sh') }}
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK 27
+        run: echo "y" | sdkmanager --install "ndk;27.0.12077973"
+
+      - name: Set NDK environment
+        if: steps.jnilibs-cache.outputs.cache-hit != 'true'
+        run: echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+
+      # gradle.properties sets -Xmx8G which exceeds GitHub runner RAM (7GB total).
+      # Override to a safe value so the Kotlin daemon doesn't OOM on startup.
+      - name: Override Gradle JVM heap
+        run: |
+          echo "org.gradle.jvmargs=-Xmx4G -XX:MaxMetaspaceSize=2G -XX:ReservedCodeCacheSize=512m" \
+            >> android/gradle.properties
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build Rust libraries for Android
+        if: steps.jnilibs-cache.outputs.cache-hit != 'true'
+        run: |
+          chmod +x scripts/build_android.sh scripts/build_openssl_android.sh scripts/setup_android_config.sh
+          ./scripts/build_android.sh
+
+      # gradlew is gitignored — generate it via flutter
+      - name: Generate gradlew
+        run: flutter build apk --config-only 2>/dev/null || true
+
+      - name: Build debug APK
+        run: |
+          chmod +x android/gradlew
+          cd android && ./gradlew assembleDebug
+          echo "=== APK outputs ==="
+          find ../build/app/outputs -name "*.apk" | head -10
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: whitenoise-audio-debug
+          path: build/app/outputs/**/*.apk
+          retention-days: 7
