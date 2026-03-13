@@ -5,7 +5,7 @@ import 'package:whitenoise/hooks/use_media_download.dart';
 import 'package:whitenoise/src/rust/api/media_files.dart';
 import 'package:whitenoise/theme.dart';
 import 'package:whitenoise/widgets/wn_audio_player.dart';
-import 'package:whitenoise/widgets/wn_media_error_placeholder.dart';
+
 
 class WnAudioMessageTile extends HookWidget {
   final MediaFile mediaFile;
@@ -44,10 +44,26 @@ class WnAudioMessageTile extends HookWidget {
             ],
           ),
         ),
-      MediaDownloadStatus.error => WnMediaErrorPlaceholder(
+      MediaDownloadStatus.error => GestureDetector(
           key: const Key('audio_error'),
-          onRetry: retry!,
-          blurhash: null,
+          onTap: retry,
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.h),
+            child: Row(
+              children: [
+                Icon(Icons.error_outline, size: 20.r, color: colors.fillContentSecondary),
+                SizedBox(width: 8.w),
+                Expanded(
+                  child: Text(
+                    'Failed to load audio — tap to retry',
+                    style: context.typographyScaled.medium12.copyWith(
+                      color: colors.fillContentSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       MediaDownloadStatus.success => WnAudioPlayer(
           key: Key('audio_player_${mediaFile.id}'),

@@ -39,10 +39,11 @@ class ChatMessageMedia extends StatelessWidget {
                 .toList(),
             onTileTap: onMediaTap,
           ),
-        ...audioFiles.map(
-          (mf) => WnAudioMessageTile(
-            key: Key('audio_tile_${mf.id}'),
-            mediaFile: mf,
+        ...audioFiles.indexed.map(
+          ((int, MediaFile) entry) => WnAudioMessageTile(
+            // Use index in key to handle duplicate files (same id/hash from Blossom dedup)
+            key: Key('audio_tile_${entry.$1}_${entry.$2.id}'),
+            mediaFile: entry.$2,
             isOutgoing: isOutgoing,
           ),
         ),
