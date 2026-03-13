@@ -1,3 +1,4 @@
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -33,15 +34,19 @@ class WnAudioPlayer extends HookWidget {
     useEffect(() {
       isLoaded.value = false;
       loadError.value = false;
-      player
-          .setFilePath(localPath)
-          .then((_) {
-            duration.value = player.duration ?? Duration.zero;
-            isLoaded.value = true;
-          })
-          .catchError((Object e) {
-            loadError.value = true;
-          });
+      Future<void> init() async {
+        try {
+          final session = await AudioSession.instance;
+          await session.configure(const AudioSessionConfiguration.music());
+          await player.setFilePath(localPath);
+          duration.value = player.duration ?? Duration.zero;
+          isLoaded.value = true;
+        } catch (_) {
+          loadError.value = true;
+        }
+      }
+
+      init();
       final posSub = player.positionStream.listen((p) => position.value = p);
       final playingSub = player.playingStream.listen((p) => isPlaying.value = p);
       player.playerStateStream.listen((state) {
