@@ -87,20 +87,52 @@ class _MediaPreviewWithOverlay extends StatelessWidget {
     );
   }
 
+  static final _imageExts = {
+    'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'bmp',
+  };
+
+  bool _isImage(String filePath) {
+    final ext = filePath.split('.').last.toLowerCase();
+    return _imageExts.contains(ext);
+  }
+
   Widget _buildImageTile(MediaUploadItem item, SemanticColors colors) {
-    return Image.file(
-      File(item.filePath),
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => Container(
-        key: const Key('image_tile_error_fallback'),
-        color: colors.fillSecondary,
-        child: Center(
-          child: WnIcon(
-            WnIcons.image,
+    if (_isImage(item.filePath)) {
+      return Image.file(
+        File(item.filePath),
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _buildFileTile(item, colors),
+      );
+    }
+    return _buildFileTile(item, colors);
+  }
+
+  Widget _buildFileTile(MediaUploadItem item, SemanticColors colors) {
+    final name = item.filePath.split('/').last;
+    return Container(
+      key: Key('file_tile_${item.filePath}'),
+      color: colors.fillSecondary,
+      padding: EdgeInsets.all(8.r),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          WnIcon(
+            WnIcons.file,
             color: colors.backgroundContentTertiary,
-            size: 48.sp,
+            size: 32.sp,
           ),
-        ),
+          SizedBox(height: 4.h),
+          Text(
+            name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 10.sp,
+              color: colors.backgroundContentSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }

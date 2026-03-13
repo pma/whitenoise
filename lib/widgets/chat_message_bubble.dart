@@ -100,6 +100,7 @@ class ChatMessageBubble extends StatelessWidget {
               key: const Key('message_media'),
               mediaFiles: message.mediaAttachments,
               onMediaTap: (index) => _showMediaModal(context, index),
+              isOutgoing: isOwnMessage,
             )
           : null,
       replyContent: replyPreview != null

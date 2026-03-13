@@ -35,6 +35,7 @@ import 'package:whitenoise/widgets/chat_scroll_down_button.dart';
 import 'package:whitenoise/widgets/wn_chat_message_input.dart';
 import 'package:whitenoise/widgets/wn_icon.dart';
 import 'package:whitenoise/widgets/wn_icon_button.dart';
+import 'package:whitenoise/widgets/wn_attach_bottom_sheet.dart';
 import 'package:whitenoise/widgets/wn_scroll_edge_effect.dart';
 import 'package:whitenoise/widgets/wn_search_field.dart';
 import 'package:whitenoise/widgets/wn_slate.dart';
@@ -574,7 +575,11 @@ class _ChatInput extends StatelessWidget {
         inputStyle: inputStyle,
         onAddTap: () {
           input.focusNode.unfocus();
-          mediaUpload.pickImages();
+          showAttachBottomSheet(
+            context: context,
+            onGallery: mediaUpload.pickImages,
+            onFile: mediaUpload.pickFiles,
+          );
         },
         inputField: TextField(
           controller: input.controller,

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
@@ -22,6 +23,7 @@ typedef MediaUploadState = ({
   bool canSend,
   List<MediaFile> uploadedFiles,
   Future<void> Function() pickImages,
+  Future<void> Function() pickFiles,
   void Function(String filePath) removeItem,
   VoidCallback clearAll,
 });
@@ -146,6 +148,49 @@ MediaUploadState useMediaUpload({
     }
   }
 
+  Future<void> pickFiles() async {
+    _logger.info('pickFiles groupId=$groupId');
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      allowMultiple: true,
+    );
+    if (result == null || result.files.isEmpty) {
+      _logger.info('pickFiles no files selected');
+      return;
+    }
+
+    final existingPaths = items.value.map((item) => item.filePath).toSet();
+    final uniqueFiles = result.files
+        .where((f) => f.path != null && !existingPaths.contains(f.path))
+        .toList();
+    if (uniqueFiles.isEmpty) {
+      _logger.info('pickFiles all files already queued, skipping');
+      return;
+    }
+
+    _logger.info(
+      'pickFiles picked=${result.files.length} unique=${uniqueFiles.length} groupId=$groupId',
+    );
+
+    final newItems = uniqueFiles
+        .map(
+          (f) =>
+              (
+                filePath: f.path!,
+                status: MediaUploadStatus.uploading,
+                file: null,
+                retry: null,
+              ) as MediaUploadItem,
+        )
+        .toList();
+
+    items.value = [...items.value, ...newItems];
+
+    for (final item in newItems) {
+      unawaited(performUpload(item.filePath));
+    }
+  }
+
   void removeItem(String filePath) {
     items.value = items.value.where((item) => item.filePath != filePath).toList();
   }
@@ -168,6 +213,7 @@ MediaUploadState useMediaUpload({
     canSend: canSend,
     uploadedFiles: uploadedFiles,
     pickImages: pickImages,
+    pickFiles: pickFiles,
     removeItem: removeItem,
     clearAll: clearAll,
   );
