@@ -107,7 +107,18 @@ class WnAudioPlayer extends HookWidget {
         GestureDetector(
           key: const Key('audio_play_pause'),
           onTap: isLoaded.value
-              ? () => isPlaying.value ? player.pause() : player.play()
+              ? () async {
+                  if (isPlaying.value) {
+                    player.pause();
+                  } else {
+                    // Re-acquire audio focus explicitly — Android releases it
+                    // when the app goes to background. Without this, play()
+                    // succeeds silently (position moves, no sound) on resume.
+                    final session = await AudioSession.instance;
+                    await session.setActive(true);
+                    player.play();
+                  }
+                }
               : null,
           child: Icon(
             isPlaying.value ? Icons.pause_rounded : Icons.play_arrow_rounded,
