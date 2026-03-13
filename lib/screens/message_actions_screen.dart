@@ -24,6 +24,7 @@ class MessageActionsScreen extends HookWidget {
     required this.onRemoveReaction,
     this.onDelete,
     this.onReply,
+    this.onSave,
     this.senderName,
     this.senderPictureUrl,
     this.isGroupChat = false,
@@ -36,6 +37,7 @@ class MessageActionsScreen extends HookWidget {
   final Future<void> Function(String reactionId) onRemoveReaction;
   final Future<void> Function()? onDelete;
   final void Function(ChatMessage message)? onReply;
+  final Future<void> Function()? onSave;
   final String? senderName;
   final String? senderPictureUrl;
   final bool isGroupChat;
@@ -49,6 +51,7 @@ class MessageActionsScreen extends HookWidget {
     required Future<void> Function(String reactionId) onRemoveReaction,
     Future<void> Function()? onDelete,
     void Function(ChatMessage message)? onReply,
+    Future<void> Function()? onSave,
     String? senderName,
     String? senderPictureUrl,
     bool isGroupChat = false,
@@ -69,6 +72,7 @@ class MessageActionsScreen extends HookWidget {
             onRemoveReaction: onRemoveReaction,
             onDelete: onDelete,
             onReply: onReply,
+            onSave: onSave,
             senderName: senderName,
             senderPictureUrl: senderPictureUrl,
             isGroupChat: isGroupChat,
@@ -171,6 +175,12 @@ class MessageActionsScreen extends HookWidget {
                             });
                           }
                         : null,
+                    onSave: onSave != null
+                        ? () {
+                            Navigator.of(context).pop();
+                            onSave!();
+                          }
+                        : null,
                     senderName: senderName,
                     senderPictureUrl: senderPictureUrl,
                     isGroupChat: isGroupChat,
@@ -202,6 +212,7 @@ class MessageActionsModal extends StatelessWidget {
     this.onDelete,
     this.selectedEmojis = const {},
     this.onReply,
+    this.onSave,
     this.senderName,
     this.senderPictureUrl,
     this.isGroupChat = false,
@@ -216,6 +227,7 @@ class MessageActionsModal extends StatelessWidget {
   final VoidCallback? onDelete;
   final Set<String> selectedEmojis;
   final VoidCallback? onReply;
+  final VoidCallback? onSave;
   final String? senderName;
   final String? senderPictureUrl;
   final bool isGroupChat;
@@ -297,6 +309,17 @@ class MessageActionsModal extends StatelessWidget {
                 trailingIcon: WnIcons.reply,
                 onPressed: onReply,
               ),
+            if (onSave != null) ...[
+              Gap(8.h),
+              WnButton(
+                key: const Key('save_button'),
+                text: context.l10n.save,
+                type: WnButtonType.outline,
+                size: WnButtonSize.medium,
+                trailingIcon: WnIcons.download,
+                onPressed: onSave,
+              ),
+            ],
             Gap(8.h),
             WnButton(
               key: const Key('copy_button'),

@@ -1,6 +1,3 @@
-import 'dart:io';
-
-import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -52,55 +49,11 @@ class WnAudioMessageTile extends HookWidget {
           onRetry: retry!,
           blurhash: null,
         ),
-      MediaDownloadStatus.success => Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: WnAudioPlayer(
-                key: Key('audio_player_${mediaFile.id}'),
-                localPath: localPath!,
-                isOutgoing: isOutgoing,
-              ),
-            ),
-            IconButton(
-              icon: Icon(
-                Icons.download_outlined,
-                size: 20.r,
-                color: colors.fillContentSecondary,
-              ),
-              tooltip: 'Save to Downloads',
-              onPressed: () => _saveAudio(context, localPath!, mediaFile.mimeType),
-            ),
-          ],
+      MediaDownloadStatus.success => WnAudioPlayer(
+          key: Key('audio_player_${mediaFile.id}'),
+          localPath: localPath!,
+          isOutgoing: isOutgoing,
         ),
     };
-  }
-
-  Future<void> _saveAudio(
-    BuildContext context,
-    String localPath,
-    String mimeType,
-  ) async {
-    try {
-      final bytes = await File(localPath).readAsBytes();
-      final fileName = localPath.split('/').last;
-      await FileSaver.instance.saveFile(
-        name: fileName,
-        bytes: bytes,
-        mimeType: MimeType.other,
-        customMimeType: mimeType,
-      );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Saved to Downloads')),
-        );
-      }
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save file')),
-        );
-      }
-    }
   }
 }

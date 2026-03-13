@@ -17,6 +17,10 @@ import 'package:whitenoise/providers/account_pubkey_provider.dart';
 import 'package:whitenoise/providers/active_chat_provider.dart';
 import 'package:whitenoise/providers/debug_view_provider.dart';
 import 'package:whitenoise/providers/message_debug_log_provider.dart';
+import 'dart:io';
+
+import 'package:file_saver/file_saver.dart';
+import 'package:gal/gal.dart';
 import 'package:whitenoise/providers/notification_provider.dart';
 import 'package:whitenoise/routes.dart';
 import 'package:whitenoise/screens/message_actions_screen.dart';
@@ -195,12 +199,55 @@ class ChatScreen extends HookConsumerWidget {
           reactionPubkey: pubkey,
         ),
         onReply: (msg) => input.setReplyingTo(msg),
+        onSave: message.mediaAttachments.isNotEmpty
+            ? () => _saveAllAttachments(context, message.mediaAttachments)
+            : null,
         senderName: senderName,
         getChatMessageQuote: getChatMessageQuote,
         senderPictureUrl: senderPictureUrl,
         isGroupChat: isGroupChat,
       );
       if (context.mounted) FocusManager.instance.primaryFocus?.unfocus();
+    }
+
+    Future<void> _saveAllAttachments(
+      BuildContext context,
+      List<MediaFile> attachments,
+    ) async {
+      var saved = 0;
+      for (final mf in attachments) {
+        final localPath = mf.filePath;
+        if (localPath.isEmpty || !File(localPath).existsSync()) continue;
+        try {
+          if (mf.mimeType.startsWith('image/')) {
+            await Gal.putImage(localPath);
+            saved++;
+          } else if (mf.mimeType.startsWith('video/')) {
+            await Gal.putVideo(localPath);
+            saved++;
+          } else {
+            final bytes = await File(localPath).readAsBytes();
+            final fileName = localPath.split('/').last;
+            await FileSaver.instance.saveFile(
+              name: fileName,
+              bytes: bytes,
+              mimeType: MimeType.other,
+              customMimeType: mf.mimeType,
+            );
+            saved++;
+          }
+        } catch (_) {
+          // skip files that fail, report at end
+        }
+      }
+      if (context.mounted) {
+        final msg = saved == 0
+            ? 'Nothing to save (media not yet downloaded)'
+            : saved == attachments.length
+                ? 'Saved'
+                : 'Saved $saved of ${attachments.length}';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      }
     }
 
     final safeAreaTop = MediaQuery.of(context).padding.top;
