@@ -38,6 +38,21 @@ class WnAudioPlayer extends HookWidget {
         try {
           final session = await AudioSession.instance;
           await session.configure(const AudioSessionConfiguration.music());
+
+          // Handle audio focus changes: duck/loss → pause; resume on regain.
+          // Without this, a transient focus loss (e.g. notification sound)
+          // can leave the player silently playing with volume ducked to zero.
+          session.interruptionEventStream.listen((event) {
+            if (event.begin) {
+              player.pause();
+            } else {
+              if (event.type != AudioInterruptionType.pause) {
+                player.play();
+              }
+            }
+          });
+          session.becomingNoisyEventStream.listen((_) => player.pause());
+
           await player.setFilePath(localPath);
           duration.value = player.duration ?? Duration.zero;
           isLoaded.value = true;
