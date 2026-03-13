@@ -15,6 +15,7 @@ enum MediaUploadStatus { uploading, uploaded, error }
 
 typedef MediaUploadItem = ({
   String filePath,
+  String originalFilename,
   MediaUploadStatus status,
   MediaFile? file,
   VoidCallback? retry,
@@ -28,7 +29,7 @@ const maxUploadBytes = 50 * 1024 * 1024;
 typedef MediaUploadState = ({
   List<MediaUploadItem> items,
   bool canSend,
-  List<MediaFile> uploadedFiles,
+  List<({MediaFile file, String originalFilename})> uploadedFiles,
   Future<void> Function() pickImages,
   /// Picks one or more files to attach.
   /// Returns the names of any files that exceeded [maxUploadBytes] so the
@@ -85,6 +86,7 @@ MediaUploadState useMediaUpload({
         filePath,
         (item) => (
           filePath: item.filePath,
+          originalFilename: item.originalFilename,
           status: MediaUploadStatus.uploaded,
           file: file,
           retry: null,
@@ -97,6 +99,7 @@ MediaUploadState useMediaUpload({
         filePath,
         (item) => (
           filePath: item.filePath,
+          originalFilename: item.originalFilename,
           status: MediaUploadStatus.error,
           file: null,
           retry: () {
@@ -106,6 +109,7 @@ MediaUploadState useMediaUpload({
               filePath,
               (i) => (
                 filePath: i.filePath,
+                originalFilename: i.originalFilename,
                 status: MediaUploadStatus.uploading,
                 file: null,
                 retry: null,
@@ -144,6 +148,7 @@ MediaUploadState useMediaUpload({
     final newItems = uniqueFiles.map((xFile) {
       return (
             filePath: xFile.path,
+            originalFilename: xFile.path.split('/').last,
             status: MediaUploadStatus.uploading,
             file: null,
             retry: null,
@@ -171,7 +176,7 @@ MediaUploadState useMediaUpload({
     }
 
     final existingPaths = items.value.map((item) => item.filePath).toSet();
-    final resolvedPaths = <String>[];
+    final resolvedItems = <({String path, String originalFilename})>[];
     final oversizedNames = <String>[];
 
     for (final f in result.files) {
@@ -183,9 +188,11 @@ MediaUploadState useMediaUpload({
       }
 
       if (f.path != null && !existingPaths.contains(f.path)) {
-        resolvedPaths.add(f.path!);
+        // f.name is the original display name used by the Rust for encryption
+        resolvedItems.add((path: f.path!, originalFilename: f.name));
       } else if (f.path == null) {
         // Android content URI — no direct path, stream bytes to a temp file.
+        // Use f.name so the temp file keeps the original name (Rust uses it for key derivation).
         if (f.bytes != null) {
           try {
             final tmpDir = await getTemporaryDirectory();
@@ -193,7 +200,7 @@ MediaUploadState useMediaUpload({
             await tmpFile.writeAsBytes(f.bytes!, flush: true);
             _logger.info('pickFiles streamed content URI to ${tmpFile.path}');
             if (!existingPaths.contains(tmpFile.path)) {
-              resolvedPaths.add(tmpFile.path);
+              resolvedItems.add((path: tmpFile.path, originalFilename: f.name));
             }
           } catch (e) {
             _logger.severe('pickFiles failed to stream ${f.name} to temp file: $e');
@@ -206,14 +213,15 @@ MediaUploadState useMediaUpload({
       }
     }
 
-    if (resolvedPaths.isNotEmpty) {
-      _logger.info('pickFiles queuing ${resolvedPaths.length} files groupId=$groupId');
+    if (resolvedItems.isNotEmpty) {
+      _logger.info('pickFiles queuing ${resolvedItems.length} files groupId=$groupId');
 
-      final newItems = resolvedPaths
+      final newItems = resolvedItems
           .map(
-            (path) =>
+            (r) =>
                 (
-                  filePath: path,
+                  filePath: r.path,
+                  originalFilename: r.originalFilename,
                   status: MediaUploadStatus.uploading,
                   file: null,
                   retry: null,
@@ -245,7 +253,7 @@ MediaUploadState useMediaUpload({
 
   final uploadedFiles = items.value
       .where((item) => item.status == MediaUploadStatus.uploaded && item.file != null)
-      .map((item) => item.file!)
+      .map((item) => (file: item.file!, originalFilename: item.originalFilename))
       .toList();
 
   return (

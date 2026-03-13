@@ -140,12 +140,12 @@ class ChatScreen extends HookConsumerWidget {
     Future<void> sendMessage(
       String message,
       ChatMessage? replyingTo,
-      List<MediaFile> mediaFiles,
+      List<({MediaFile file, String originalFilename})> uploadedFiles,
     ) async {
       debugLog.logStarted(
         groupId: groupId,
         contentLen: message.length,
-        mediaCount: mediaFiles.length,
+        mediaCount: uploadedFiles.length,
         replyToId: replyingTo?.id,
       );
       try {
@@ -154,7 +154,7 @@ class ChatScreen extends HookConsumerWidget {
           replyToMessageId: replyingTo?.id,
           replyToMessagePubkey: replyingTo?.pubkey,
           replyToMessageKind: replyingTo?.kind,
-          mediaFiles: mediaFiles,
+          uploadedFiles: uploadedFiles,
         );
         debugLog.logOk(groupId: groupId, resultId: '');
         mediaUpload.clearAll();
@@ -497,7 +497,7 @@ class _ChatInput extends StatelessWidget {
   final Future<void> Function(
     String message,
     ChatMessage? replyingTo,
-    List<MediaFile> mediaFiles,
+    List<({MediaFile file, String originalFilename})> uploadedFiles,
   )
   onSend;
   final void Function(String message) onError;

@@ -32,11 +32,11 @@ class MessageService {
     String? replyToMessageId,
     String? replyToMessagePubkey,
     int? replyToMessageKind,
-    List<MediaFile> mediaFiles = const [],
+    List<({MediaFile file, String originalFilename})> uploadedFiles = const [],
   }) async {
     _logger.info(
       'sendMessage START groupId=$groupId contentLen=${content.length} '
-      'replyTo=$replyToMessageId mediaCount=${mediaFiles.length}',
+      'replyTo=$replyToMessageId mediaCount=${uploadedFiles.length}',
     );
 
     try {
@@ -47,7 +47,7 @@ class MessageService {
           ? [await _replyTag(eventId: replyToMessageId, eventPubkey: replyToMessagePubkey)]
           : <messages_api.Tag>[];
 
-      final mediaTags = await _buildMediaTags(mediaFiles: mediaFiles);
+      final mediaTags = await _buildMediaTags(uploadedFiles: uploadedFiles);
       final allTags = [...replyTags, ...mediaTags];
 
       final message = isReply
@@ -264,27 +264,34 @@ class MessageService {
   }
 
   Future<List<messages_api.Tag>> _buildMediaTags({
-    required List<MediaFile> mediaFiles,
+    required List<({MediaFile file, String originalFilename})> uploadedFiles,
   }) {
     return Future.wait(
-      mediaFiles.map((file) => _buildMediaTag(mediaFile: file)),
+      uploadedFiles.map(
+        (u) => _buildMediaTag(mediaFile: u.file, pickerFilename: u.originalFilename),
+      ),
     );
   }
 
   // MIP-04: https://github.com/marmot-protocol/marmot/blob/master/04.md
   Future<messages_api.Tag> _buildMediaTag({
     required MediaFile mediaFile,
+    required String pickerFilename,
   }) async {
     final metadata = mediaFile.fileMetadata;
 
-    // Prefer the stored original filename; fall back to the cached file's
-    // basename (e.g. "<hash>.mp3") so the imeta tag always has a non-empty
-    // filename field.  An empty filename causes parseMip04ImetaTags to
-    // silently reject the whole tag.
-    final originalFilename = metadata?.originalFilename;
-    final filename = (originalFilename != null && originalFilename.isNotEmpty)
-        ? originalFilename
-        : mediaFile.filePath.split('/').last;
+    // The Rust derives the MIP-04 encryption key using the filename from
+    // file_path.file_name() at the time of upload.  After upload, file_path
+    // is updated to the hash-based cache path (e.g. "<sha256>.mp3"), so we
+    // must NOT use mediaFile.filePath.  Instead we use pickerFilename —
+    // the original f.name from FilePicker, which is exactly what the Rust
+    // received and used for key derivation.
+    // For images the Rust also sets fileMetadata.originalFilename; prefer
+    // that if available (it is the same value, just surfaced via exif processing).
+    final metaFilename = metadata?.originalFilename;
+    final filename = (metaFilename != null && metaFilename.isNotEmpty)
+        ? metaFilename
+        : pickerFilename;
 
     final tags = [
       'imeta',
