@@ -1,6 +1,10 @@
+import 'dart:io';
+
+import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:gal/gal.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:whitenoise/l10n/l10n.dart';
 import 'package:whitenoise/providers/locale_provider.dart';
@@ -8,6 +12,7 @@ import 'package:whitenoise/src/rust/api/media_files.dart';
 import 'package:whitenoise/theme.dart';
 import 'package:whitenoise/widgets/chat_media_thumbnail.dart';
 import 'package:whitenoise/widgets/media_image.dart';
+import 'package:whitenoise/widgets/wn_audio_message_tile.dart';
 import 'package:whitenoise/widgets/wn_avatar.dart';
 import 'package:whitenoise/widgets/wn_icon.dart';
 import 'package:whitenoise/widgets/wn_overlay.dart';
@@ -55,6 +60,66 @@ class MediaModal extends HookWidget {
     );
   }
 
+  Future<void> _saveCurrentMedia(BuildContext context, MediaFile mediaFile) async {
+    String? localPath;
+
+    if (mediaFile.filePath.isNotEmpty && File(mediaFile.filePath).existsSync()) {
+      localPath = mediaFile.filePath;
+    } else if (mediaFile.originalFileHash?.isNotEmpty == true) {
+      try {
+        final result = await downloadChatMedia(
+          accountPubkey: mediaFile.accountPubkey,
+          groupId: mediaFile.mlsGroupId,
+          originalFileHash: mediaFile.originalFileHash!,
+        );
+        localPath = result.filePath;
+      } catch (_) {
+        localPath = null;
+      }
+    }
+
+    if (localPath == null || !context.mounted) return;
+
+    final mimeType = mediaFile.mimeType;
+    try {
+      if (mimeType.startsWith('image/')) {
+        await Gal.putImage(localPath);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Saved to Gallery')));
+        }
+      } else if (mimeType.startsWith('video/')) {
+        await Gal.putVideo(localPath);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Saved to Gallery')));
+        }
+      } else {
+        final bytes = await File(localPath).readAsBytes();
+        final fileName = localPath.split('/').last;
+        final dotIdx = fileName.lastIndexOf('.');
+        final name = dotIdx > 0 ? fileName.substring(0, dotIdx) : fileName;
+        final ext = dotIdx > 0 ? fileName.substring(dotIdx + 1) : 'bin';
+        await FileSaver.instance.saveFile(
+          name: name,
+          bytes: bytes,
+          ext: ext,
+          mimeType: MimeType.other,
+          customMimeType: mimeType,
+        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Saved to Downloads')));
+        }
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Failed to save file')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentIndex = useState(initialIndex);
@@ -95,6 +160,10 @@ class MediaModal extends HookWidget {
                             senderPubkey: senderPubkey,
                             timestamp: timestamp,
                             onClose: () => Navigator.of(context).pop(),
+                            onSave: () => _saveCurrentMedia(
+                              context,
+                              mediaFiles[currentIndex.value],
+                            ),
                           )
                         : const SizedBox.shrink(),
                   ),
@@ -166,9 +235,16 @@ class _MediaContent extends StatelessWidget {
               physics: isZoomed ? const NeverScrollableScrollPhysics() : const PageScrollPhysics(),
               onPageChanged: onPageChanged,
               itemBuilder: (_, index) {
+                final mediaFile = mediaFiles[index];
+                if (mediaFile.mimeType.startsWith('audio/')) {
+                  return _AudioFullScreenView(
+                    key: Key('audio_viewer_$index'),
+                    mediaFile: mediaFile,
+                  );
+                }
                 return MediaImage(
                   key: Key('media_image_$index'),
-                  mediaFile: mediaFiles[index],
+                  mediaFile: mediaFile,
                   onZoomChanged: onZoomChanged,
                 );
               },
@@ -194,6 +270,7 @@ class _MediaModalHeader extends ConsumerWidget {
   final String? senderPubkey;
   final DateTime? timestamp;
   final VoidCallback onClose;
+  final VoidCallback? onSave;
 
   const _MediaModalHeader({
     this.senderName,
@@ -201,6 +278,7 @@ class _MediaModalHeader extends ConsumerWidget {
     this.senderPubkey,
     this.timestamp,
     required this.onClose,
+    this.onSave,
   });
 
   @override
@@ -249,6 +327,22 @@ class _MediaModalHeader extends ConsumerWidget {
               ],
             ),
           ),
+          if (onSave != null)
+            GestureDetector(
+              key: const Key('media_modal_save'),
+              onTap: onSave,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                height: 80.h,
+                padding: EdgeInsets.only(left: 8.w, right: 4.w),
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.download_outlined,
+                  color: colors.backgroundContentPrimary,
+                  size: 24.sp,
+                ),
+              ),
+            ),
           GestureDetector(
             key: const Key('media_modal_close'),
             onTap: onClose,
@@ -265,6 +359,25 @@ class _MediaModalHeader extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AudioFullScreenView extends StatelessWidget {
+  final MediaFile mediaFile;
+
+  const _AudioFullScreenView({super.key, required this.mediaFile});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 24.w),
+        child: WnAudioMessageTile(
+          mediaFile: mediaFile,
+          isOutgoing: false,
+        ),
       ),
     );
   }

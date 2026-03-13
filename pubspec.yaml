@@ -70,6 +70,8 @@ dependencies:
   package_info_plus: ^9.0.0
   just_audio: ^0.9.42
   file_picker: ^8.3.7
+  gal: ^2.3.2
+  file_saver: ^0.3.1
 
 dev_dependencies:
   flutter_test:
