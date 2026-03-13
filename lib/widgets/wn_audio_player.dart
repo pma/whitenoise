@@ -5,6 +5,24 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:whitenoise/theme.dart';
 
+/// Reactivates the audio session when the app returns to the foreground.
+///
+/// Android releases audio focus when an app is backgrounded. Without this,
+/// the first [player.play()] after a resume succeeds silently — the position
+/// advances but no audio is routed to the speaker. Proactively calling
+/// [AudioSession.setActive(true)] on [AppLifecycleState.resumed] ensures the
+/// audio route is established before the user ever taps play.
+class _AudioSessionReactivator extends WidgetsBindingObserver {
+  _AudioSessionReactivator();
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      AudioSession.instance.then((session) => session.setActive(true));
+    }
+  }
+}
+
 class WnAudioPlayer extends HookWidget {
   final String localPath;
   final bool isOutgoing;
@@ -30,6 +48,14 @@ class WnAudioPlayer extends HookWidget {
     final duration = useState(Duration.zero);
     final isLoaded = useState(false);
     final loadError = useState(false);
+
+    // Re-activate audio session when app returns to foreground.
+    // One observer per player is fine — setActive(true) is idempotent.
+    useEffect(() {
+      final observer = _AudioSessionReactivator();
+      WidgetsBinding.instance.addObserver(observer);
+      return () => WidgetsBinding.instance.removeObserver(observer);
+    }, []);
 
     useEffect(() {
       isLoaded.value = false;
@@ -111,9 +137,8 @@ class WnAudioPlayer extends HookWidget {
                   if (isPlaying.value) {
                     player.pause();
                   } else {
-                    // Re-acquire audio focus explicitly — Android releases it
-                    // when the app goes to background. Without this, play()
-                    // succeeds silently (position moves, no sound) on resume.
+                    // Belt-and-suspenders: also re-acquire on tap in case
+                    // the lifecycle observer hasn't fired yet.
                     final session = await AudioSession.instance;
                     await session.setActive(true);
                     player.play();
