@@ -97,13 +97,9 @@ class MediaModal extends HookWidget {
       } else {
         final bytes = await File(localPath).readAsBytes();
         final fileName = localPath.split('/').last;
-        final dotIdx = fileName.lastIndexOf('.');
-        final name = dotIdx > 0 ? fileName.substring(0, dotIdx) : fileName;
-        final ext = dotIdx > 0 ? fileName.substring(dotIdx + 1) : 'bin';
         await FileSaver.instance.saveFile(
-          name: name,
+          name: fileName,
           bytes: bytes,
-          ext: ext,
           mimeType: MimeType.other,
           customMimeType: mimeType,
         );
