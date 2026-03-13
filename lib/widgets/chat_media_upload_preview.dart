@@ -19,58 +19,85 @@ class ChatMediaUploadPreview extends HookWidget {
   final List<MediaUploadItem> items;
   final void Function(String filePath) onRemove;
 
+  static final _imageExts = {
+    'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'bmp',
+  };
+
+  static bool _isImage(String filePath) {
+    final ext = filePath.split('.').last.toLowerCase();
+    return _imageExts.contains(ext);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) return const SizedBox.shrink();
 
+    final imageItems = items.where((i) => _isImage(i.filePath)).toList();
+    final fileItems = items.where((i) => !_isImage(i.filePath)).toList();
+
     final selectedIndex = useState(0);
 
     useEffect(() {
-      if (selectedIndex.value >= items.length) {
-        selectedIndex.value = items.isNotEmpty ? items.length - 1 : 0;
+      if (selectedIndex.value >= imageItems.length) {
+        selectedIndex.value = imageItems.isNotEmpty ? imageItems.length - 1 : 0;
       }
       return null;
-    }, [items.length]);
+    }, [imageItems.length]);
 
-    final currentItem = items[selectedIndex.value];
-
-    return _MediaPreviewWithOverlay(
-      items: items,
-      selectedIndex: selectedIndex.value,
-      onSelectedChanged: (index) => selectedIndex.value = index,
-      onDelete: () => onRemove(currentItem.filePath),
-      currentItem: currentItem,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (imageItems.isNotEmpty)
+          _ImagePreviewSection(
+            items: imageItems,
+            selectedIndex: selectedIndex.value,
+            onSelectedChanged: (i) => selectedIndex.value = i,
+            onRemove: onRemove,
+          ),
+        if (fileItems.isNotEmpty) ...[
+          if (imageItems.isNotEmpty) SizedBox(height: 6.h),
+          _FileChipList(items: fileItems, onRemove: onRemove),
+        ],
+      ],
     );
   }
 }
 
-class _MediaPreviewWithOverlay extends StatelessWidget {
-  const _MediaPreviewWithOverlay({
+// ── Image section (large preview, unchanged behaviour) ──────────────────────
+
+class _ImagePreviewSection extends StatelessWidget {
+  const _ImagePreviewSection({
     required this.items,
     required this.selectedIndex,
     required this.onSelectedChanged,
-    required this.onDelete,
-    required this.currentItem,
+    required this.onRemove,
   });
 
   final List<MediaUploadItem> items;
   final int selectedIndex;
   final ValueChanged<int> onSelectedChanged;
-  final VoidCallback onDelete;
-  final MediaUploadItem currentItem;
+  final void Function(String) onRemove;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-
+    final currentItem = items[selectedIndex];
     return Stack(
       children: [
         WnMediaPreview(
           key: const Key('chat_media_upload_preview'),
           selectedIndex: selectedIndex,
           onSelectedChanged: onSelectedChanged,
-          onDelete: onDelete,
-          children: items.map((item) => _buildImageTile(item, colors)).toList(),
+          onDelete: () => onRemove(currentItem.filePath),
+          children: items
+              .map(
+                (item) => Image.file(
+                  File(item.filePath),
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              )
+              .toList(),
         ),
         if (currentItem.status == MediaUploadStatus.uploading)
           const Positioned.fill(
@@ -86,21 +113,95 @@ class _MediaPreviewWithOverlay extends StatelessWidget {
       ],
     );
   }
+}
 
-  Widget _buildImageTile(MediaUploadItem item, SemanticColors colors) {
-    return Image.file(
-      File(item.filePath),
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => Container(
-        key: const Key('image_tile_error_fallback'),
-        color: colors.fillSecondary,
-        child: Center(
-          child: WnIcon(
-            WnIcons.image,
-            color: colors.backgroundContentTertiary,
-            size: 48.sp,
+// ── File chips (compact horizontal row for non-image files) ─────────────────
+
+class _FileChipList extends StatelessWidget {
+  const _FileChipList({required this.items, required this.onRemove});
+
+  final List<MediaUploadItem> items;
+  final void Function(String) onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6.w,
+      runSpacing: 4.h,
+      children: items.map((item) => _FileChip(item: item, onRemove: onRemove)).toList(),
+    );
+  }
+}
+
+class _FileChip extends StatelessWidget {
+  const _FileChip({required this.item, required this.onRemove});
+
+  final MediaUploadItem item;
+  final void Function(String) onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final name = item.filePath.split('/').last;
+
+    Widget leading;
+    switch (item.status) {
+      case MediaUploadStatus.uploading:
+        leading = SizedBox(
+          width: 16.r,
+          height: 16.r,
+          child: CircularProgressIndicator(
+            strokeWidth: 1.5,
+            color: colors.backgroundContentSecondary,
           ),
+        );
+      case MediaUploadStatus.error:
+        leading = GestureDetector(
+          onTap: item.retry,
+          child: WnIcon(WnIcons.error, size: 16.sp, color: colors.fillDestructive),
+        );
+      case MediaUploadStatus.uploaded:
+        leading = WnIcon(WnIcons.file, size: 16.sp, color: colors.backgroundContentSecondary);
+    }
+
+    return Container(
+      key: Key('file_chip_${item.filePath}'),
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+      decoration: BoxDecoration(
+        color: colors.fillSecondary,
+        borderRadius: BorderRadius.circular(8.r),
+        border: Border.all(
+          color: item.status == MediaUploadStatus.error
+              ? colors.fillDestructive
+              : colors.borderSecondary,
         ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          leading,
+          SizedBox(width: 6.w),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 160.w),
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: context.typographyScaled.medium12.copyWith(
+                color: colors.backgroundContentPrimary,
+              ),
+            ),
+          ),
+          SizedBox(width: 6.w),
+          GestureDetector(
+            onTap: () => onRemove(item.filePath),
+            child: WnIcon(
+              WnIcons.closeSmall,
+              size: 14.sp,
+              color: colors.backgroundContentTertiary,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -68,6 +68,8 @@ dependencies:
   flutter_blurhash: ^0.9.1
   share_plus: ^12.0.1
   package_info_plus: ^9.0.0
+  just_audio: ^0.9.42
+  file_picker: ^8.3.7
 
 dev_dependencies:
   flutter_test:

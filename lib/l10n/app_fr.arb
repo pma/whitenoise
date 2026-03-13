@@ -355,5 +355,7 @@
   "invalidRelayUrlScheme": "L'URL doit commencer par wss:// ou ws://",
   "invalidRelayUrl": "URL de relais invalide",
   "thisMessageWasDeleted": "Ce message a été supprimé.",
-  "relayControlStateLoadError": "Échec du chargement de l'état de contrôle du relais. Veuillez réessayer."
+  "relayControlStateLoadError": "Échec du chargement de l'état de contrôle du relais. Veuillez réessayer.",
+  "attachGallery": "Galerie",
+  "attachFile": "Fichier"
 }

@@ -355,5 +355,7 @@
   "invalidRelayUrlScheme": "URL должен начинаться с wss:// или ws://",
   "invalidRelayUrl": "Неверный URL реле",
   "thisMessageWasDeleted": "Это сообщение было удалено.",
-  "relayControlStateLoadError": "Не удалось загрузить состояние управления реле. Пожалуйста, попробуйте снова."
+  "relayControlStateLoadError": "Не удалось загрузить состояние управления реле. Пожалуйста, попробуйте снова.",
+  "attachGallery": "Галерея",
+  "attachFile": "Файл"
 }

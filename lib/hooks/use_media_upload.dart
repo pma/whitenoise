@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
@@ -17,11 +18,20 @@ typedef MediaUploadItem = ({
   VoidCallback? retry,
 });
 
+/// Maximum file size accepted for upload (50 MiB).
+/// Most Blossom servers enforce a similar cap server-side; rejecting early
+/// gives the user clear feedback instead of a silent failure.
+const maxUploadBytes = 50 * 1024 * 1024;
+
 typedef MediaUploadState = ({
   List<MediaUploadItem> items,
   bool canSend,
   List<MediaFile> uploadedFiles,
   Future<void> Function() pickImages,
+  /// Picks one or more files to attach.
+  /// Returns the names of any files that exceeded [maxUploadBytes] so the
+  /// caller can show appropriate feedback (e.g. a SnackBar).
+  Future<List<String>> Function() pickFiles,
   void Function(String filePath) removeItem,
   VoidCallback clearAll,
 });
@@ -146,6 +156,62 @@ MediaUploadState useMediaUpload({
     }
   }
 
+  Future<List<String>> pickFiles() async {
+    _logger.info('pickFiles groupId=$groupId');
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      allowMultiple: true,
+    );
+    if (result == null || result.files.isEmpty) {
+      _logger.info('pickFiles no files selected');
+      return [];
+    }
+
+    final existingPaths = items.value.map((item) => item.filePath).toSet();
+    final resolvedPaths = <String>[];
+    final oversizedNames = <String>[];
+
+    for (final f in result.files) {
+      // Reject files that exceed the upload size cap up front.
+      if (f.size > maxUploadBytes) {
+        _logger.warning('pickFiles rejected ${f.name}: ${f.size} bytes exceeds $maxUploadBytes');
+        oversizedNames.add(f.name);
+        continue;
+      }
+
+      if (f.path != null && !existingPaths.contains(f.path)) {
+        resolvedPaths.add(f.path!);
+      } else if (f.path == null) {
+        _logger.warning('pickFiles skipping ${f.name}: no path (content URI not supported)');
+        oversizedNames.add(f.name); // reuse oversized list to surface the error
+      }
+    }
+
+    if (resolvedPaths.isNotEmpty) {
+      _logger.info('pickFiles queuing ${resolvedPaths.length} files groupId=$groupId');
+
+      final newItems = resolvedPaths
+          .map(
+            (path) =>
+                (
+                  filePath: path,
+                  status: MediaUploadStatus.uploading,
+                  file: null,
+                  retry: null,
+                ) as MediaUploadItem,
+          )
+          .toList();
+
+      items.value = [...items.value, ...newItems];
+
+      for (final item in newItems) {
+        unawaited(performUpload(item.filePath));
+      }
+    }
+
+    return oversizedNames;
+  }
+
   void removeItem(String filePath) {
     items.value = items.value.where((item) => item.filePath != filePath).toList();
   }
@@ -168,6 +234,7 @@ MediaUploadState useMediaUpload({
     canSend: canSend,
     uploadedFiles: uploadedFiles,
     pickImages: pickImages,
+    pickFiles: pickFiles,
     removeItem: removeItem,
     clearAll: clearAll,
   );
